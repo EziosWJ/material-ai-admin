@@ -1,1 +1,0 @@
-../../base-api/doc/config-api.md
