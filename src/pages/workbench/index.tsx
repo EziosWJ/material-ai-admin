@@ -114,7 +114,7 @@ export function WorkbenchHomePage() {
   useEffect(() => {
     let cancelled = false;
     setSessionsLoading(true);
-    getQaSessionPage({ page: 1, pageSize: 5 })
+    getQaSessionPage({ page: 1, pageSize: 5, status: "active" })
       .then((res) => {
         if (cancelled) return;
         setSessions(res.records);

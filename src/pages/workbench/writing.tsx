@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Copy,
-  Save,
   RefreshCw,
   Download,
   ChevronDown,
@@ -162,8 +161,23 @@ export function WorkbenchWritingPage() {
   }, []);
 
   const handleExport = useCallback(() => {
-    toast.info("功能开发中");
-  }, []);
+    const content = result?.result?.content;
+    if (!content) {
+      toast.warning("暂无内容可导出");
+      return;
+    }
+    const title = topic.trim() || "写作结果";
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("已导出为 Markdown 文件");
+  }, [result, topic]);
 
   const sourceSegments = result?.result?.sourceSegments ?? [];
   const resultContent = result?.result?.content ?? "";
@@ -341,10 +355,6 @@ export function WorkbenchWritingPage() {
             >
               <Copy className="mr-1 h-4 w-4" />
               复制
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleSaveDraft}>
-              <Save className="mr-1 h-4 w-4" />
-              保存草稿
             </Button>
             <Button
               variant="ghost"

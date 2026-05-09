@@ -40,7 +40,7 @@ export function WorkbenchChatPage() {
   // 加载会话列表
   const loadSessions = useCallback(async () => {
     try {
-      const result = await getQaSessionPage({ page: 1, pageSize: 100 });
+      const result = await getQaSessionPage({ page: 1, pageSize: 100, status: "active" });
       setSessions(result.records);
     } catch {
       // 静默处理加载失败
