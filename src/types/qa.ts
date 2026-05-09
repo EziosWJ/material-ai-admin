@@ -45,3 +45,9 @@ export type QaSessionVO = {
 export type QaSessionListQuery = Partial<ApiPageRequest> & {
   status?: string;
 };
+
+/** 发送提问响应 */
+export type AskQuestionResponse = {
+  userMessage: QaMessageVO;
+  assistantMessage: QaMessageVO;
+};

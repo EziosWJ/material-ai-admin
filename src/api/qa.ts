@@ -1,6 +1,8 @@
 import { http } from "@/lib/http";
 import type { ApiPageResult } from "@/types/api";
 import type {
+  AskQuestionResponse,
+  QaMaterialVO,
   QaMessageVO,
   QaSessionListQuery,
   QaSessionVO,
@@ -25,4 +27,31 @@ export function getQaSessionMessages(id: number) {
   return http.get<QaMessageVO[]>(`${QA_BASE_PATH}/${id}/message`, {
     query: { includeSystem: false },
   });
+}
+
+/** 创建问答会话 */
+export function createQaSession(data: {
+  title?: string;
+  materialIds?: number[];
+}) {
+  return http.post<QaSessionVO>(QA_BASE_PATH, data);
+}
+
+/** 更新会话关联材料 */
+export function updateQaSessionMaterials(
+  id: number,
+  data: { materialIds: number[] },
+) {
+  return http.put<QaMaterialVO[]>(`${QA_BASE_PATH}/${id}/material`, data);
+}
+
+/** 发送提问 */
+export function askQuestion(
+  sessionId: number,
+  data: { question: string; topK?: number },
+) {
+  return http.post<AskQuestionResponse>(
+    `${QA_BASE_PATH}/${sessionId}/ask`,
+    data,
+  );
 }

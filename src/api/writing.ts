@@ -4,6 +4,22 @@ import type { WritingTaskListQuery, WritingTaskVO } from "@/types/writing";
 
 const WRITING_BASE_PATH = "/api/writing/task";
 
+/** 创建写作任务请求体 */
+export type CreateWritingTaskRequest = {
+  title: string;
+  writingType: string;
+  topic: string;
+  requirement?: string;
+  inputContent?: string;
+  materialIds?: number[];
+  topK?: number;
+};
+
+/** 创建写作任务 */
+export function createWritingTask(data: CreateWritingTaskRequest) {
+  return http.post<WritingTaskVO>(WRITING_BASE_PATH, data);
+}
+
 /** 分页查询写作任务 */
 export function getWritingTaskPage(query: WritingTaskListQuery) {
   return http.get<ApiPageResult<WritingTaskVO>>(`${WRITING_BASE_PATH}/page`, {

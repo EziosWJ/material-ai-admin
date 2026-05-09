@@ -1,45 +1,154 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus,
   Send,
-  MessageSquareText,
   FileText,
   ChevronDown,
   ChevronRight,
   User,
   Bot,
   Quote,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  mockQaSessions,
-  mockQaMessages,
-  mockSourceSegments,
-  mockMaterials,
-} from "@/mocks/workbench";
+  createQaSession,
+  getQaSessionMessages,
+  getQaSessionPage,
+  askQuestion,
+} from "@/api/qa";
+import type { QaMessageVO, QaSessionVO, QaSourceSegmentVO } from "@/types/qa";
+import { formatDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 
 export function WorkbenchChatPage() {
-  const [selectedSessionId, setSelectedSessionId] = useState(
-    mockQaSessions[0]?.id
+  const [sessions, setSessions] = useState<QaSessionVO[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(
+    null,
   );
-  const [expandedSegments, setExpandedSegments] = useState<Set<string>>(
-    new Set()
-  );
+  const [messages, setMessages] = useState<QaMessageVO[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [expandedSegments, setExpandedSegments] = useState<Set<number>>(
+    new Set(),
+  );
 
-  const toggleSegment = (segmentId: string) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 加载会话列表
+  const loadSessions = useCallback(async () => {
+    try {
+      const result = await getQaSessionPage({ page: 1, pageSize: 100 });
+      setSessions(result.records);
+    } catch {
+      // 静默处理加载失败
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // 选中会话时加载消息
+  useEffect(() => {
+    if (selectedSessionId === null) {
+      setMessages([]);
+      return;
+    }
+
+    let cancelled = false;
+    setMessagesLoading(true);
+
+    getQaSessionMessages(selectedSessionId)
+      .then((data) => {
+        if (!cancelled) {
+          setMessages(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMessages([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMessagesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSessionId]);
+
+  // 消息更新后滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // 新建会话
+  const handleCreateSession = async () => {
+    try {
+      const session = await createQaSession({});
+      setSessions((prev) => [session, ...prev]);
+      setSelectedSessionId(session.id);
+    } catch {
+      // 静默处理创建失败
+    }
+  };
+
+  // 发送问题
+  const handleSend = async () => {
+    const question = inputValue.trim();
+    if (!question || selectedSessionId === null || sending) return;
+
+    setInputValue("");
+    setSending(true);
+
+    try {
+      const result = await askQuestion(selectedSessionId, { question });
+      setMessages((prev) => [...prev, result.userMessage, result.assistantMessage]);
+
+      // 刷新会话列表以更新 lastMessageTime / messageCount
+      loadSessions();
+    } catch {
+      // 发送失败后恢复输入内容
+      setInputValue(question);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const toggleSegment = (segmentIndex: number) => {
     setExpandedSegments((prev) => {
       const next = new Set(prev);
-      if (next.has(segmentId)) {
-        next.delete(segmentId);
+      if (next.has(segmentIndex)) {
+        next.delete(segmentIndex);
       } else {
-        next.add(segmentId);
+        next.add(segmentIndex);
       }
       return next;
     });
   };
+
+  // 当前选中会话
+  const selectedSession = sessions.find((s) => s.id === selectedSessionId);
+
+  // 最后一条 assistant 消息的来源片段
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((m) => m.role === "assistant");
+  const sourceSegments: QaSourceSegmentVO[] =
+    lastAssistantMessage?.sourceSegments ?? [];
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
@@ -47,27 +156,39 @@ export function WorkbenchChatPage() {
       <div className="w-64 flex-shrink-0 border-r border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">问答会话</h2>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleCreateSession}
+          >
             <Plus className="h-4 w-4" />
           </Button>
         </div>
         <div className="overflow-y-auto">
-          {mockQaSessions.map((session) => (
+          {sessions.map((session) => (
             <button
               key={session.id}
               className={cn(
                 "flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors hover:bg-slate-50",
                 selectedSessionId === session.id &&
-                  "bg-primary/5 border-l-2 border-primary"
+                  "bg-primary/5 border-l-2 border-primary",
               )}
               onClick={() => setSelectedSessionId(session.id)}
             >
-              <span className="text-sm text-text-primary">{session.title}</span>
+              <span className="text-sm text-text-primary">
+                {session.title}
+              </span>
               <span className="text-xs text-text-tertiary">
-                {session.updatedAt}
+                {formatDateTime(session.lastMessageTime || session.createTime)}
               </span>
             </button>
           ))}
+          {sessions.length === 0 && (
+            <div className="px-4 py-8 text-center text-xs text-text-tertiary">
+              暂无会话，点击右上角新建
+            </div>
+          )}
         </div>
       </div>
 
@@ -76,52 +197,76 @@ export function WorkbenchChatPage() {
         {/* 顶部标题 */}
         <div className="flex h-12 items-center border-b border-border px-4">
           <h3 className="text-sm font-medium text-text-primary">
-            {mockQaSessions.find((s) => s.id === selectedSessionId)?.title ||
-              "选择一个会话"}
+            {selectedSession?.title || "选择一个会话"}
           </h3>
         </div>
 
         {/* 消息列表 */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="mx-auto max-w-3xl space-y-6">
-            {mockQaMessages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex gap-3",
-                  message.role === "user" ? "justify-end" : "justify-start"
-                )}
-              >
-                {message.role === "assistant" && (
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                )}
-                <div
-                  className={cn(
-                    "max-w-[80%] rounded-lg px-4 py-3",
-                    message.role === "user"
-                      ? "bg-primary text-white"
-                      : "bg-surface border border-border"
-                  )}
-                >
-                  <div className="whitespace-pre-wrap text-sm">
-                    {message.content}
-                  </div>
-                  {message.sourceSegmentCount && (
-                    <div className="mt-2 flex items-center gap-1 text-xs text-text-tertiary">
-                      <Quote className="h-3 w-3" />
-                      引用 {message.sourceSegmentCount} 个来源片段
-                    </div>
-                  )}
-                </div>
-                {message.role === "user" && (
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-text-secondary">
-                    <User className="h-4 w-4" />
-                  </div>
-                )}
+            {messagesLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-text-tertiary" />
               </div>
-            ))}
+            )}
+
+            {!messagesLoading &&
+              messages
+                .filter((m) => m.role === "user" || m.role === "assistant")
+                .map((message) => (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "flex gap-3",
+                      message.role === "user" ? "justify-end" : "justify-start",
+                    )}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Bot className="h-4 w-4" />
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        "max-w-[80%] rounded-lg px-4 py-3",
+                        message.role === "user"
+                          ? "bg-primary text-white"
+                          : "bg-surface border border-border",
+                      )}
+                    >
+                      <div className="whitespace-pre-wrap text-sm">
+                        {message.content}
+                      </div>
+                      {message.role === "assistant" &&
+                        message.sourceSegments &&
+                        message.sourceSegments.length > 0 && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-text-tertiary">
+                            <Quote className="h-3 w-3" />
+                            引用 {message.sourceSegments.length} 个来源片段
+                          </div>
+                        )}
+                    </div>
+                    {message.role === "user" && (
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-text-secondary">
+                        <User className="h-4 w-4" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+            {!messagesLoading && selectedSessionId !== null && messages.length === 0 && (
+              <div className="py-12 text-center text-sm text-text-tertiary">
+                暂无消息，发送问题开始对话
+              </div>
+            )}
+
+            {selectedSessionId === null && (
+              <div className="py-12 text-center text-sm text-text-tertiary">
+                请从左侧选择一个会话，或新建会话
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
@@ -132,12 +277,22 @@ export function WorkbenchChatPage() {
               <Textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="输入您的问题..."
                 className="min-h-[44px] resize-none"
                 rows={1}
+                disabled={sending || selectedSessionId === null}
               />
-              <Button className="flex-shrink-0" disabled={!inputValue.trim()}>
-                <Send className="h-4 w-4" />
+              <Button
+                className="flex-shrink-0"
+                disabled={!inputValue.trim() || sending || selectedSessionId === null}
+                onClick={handleSend}
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <p className="mt-2 text-xs text-text-tertiary">
@@ -162,17 +317,22 @@ export function WorkbenchChatPage() {
               当前选择材料
             </h4>
             <div className="space-y-2">
-              {mockMaterials.slice(0, 2).map((material) => (
-                <div
-                  key={material.id}
-                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2"
-                >
-                  <FileText className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                  <span className="truncate text-sm text-text-primary">
-                    {material.title}
-                  </span>
-                </div>
-              ))}
+              {selectedSession?.materials &&
+              selectedSession.materials.length > 0 ? (
+                selectedSession.materials.map((material) => (
+                  <div
+                    key={material.materialId}
+                    className="flex items-center gap-2 rounded-lg border border-border px-3 py-2"
+                  >
+                    <FileText className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
+                    <span className="truncate text-sm text-text-primary">
+                      {material.title}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-text-tertiary">暂未关联材料</p>
+              )}
             </div>
           </div>
 
@@ -182,42 +342,48 @@ export function WorkbenchChatPage() {
               来源片段
             </h4>
             <div className="space-y-2">
-              {mockSourceSegments.map((segment) => (
-                <div
-                  key={segment.id}
-                  className="rounded-lg border border-border"
-                >
-                  <button
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left"
-                    onClick={() => toggleSegment(segment.id)}
+              {sourceSegments.length > 0 ? (
+                sourceSegments.map((segment, index) => (
+                  <div
+                    key={`${segment.materialId}-${segment.segmentIndex}-${index}`}
+                    className="rounded-lg border border-border"
                   >
-                    {expandedSegments.has(segment.id) ? (
-                      <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                    ) : (
-                      <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
+                    <button
+                      className="flex w-full items-start gap-2 px-3 py-2 text-left"
+                      onClick={() => toggleSegment(index)}
+                    >
+                      {expandedSegments.has(index) ? (
+                        <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
+                      ) : (
+                        <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium text-text-primary">
+                            {segment.materialTitle}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-text-tertiary">
+                          <span>片段 {segment.segmentIndex}</span>
+                          <span>·</span>
+                          <span>
+                            相关度 {(segment.score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                    {expandedSegments.has(index) && (
+                      <div className="border-t border-border px-3 py-2">
+                        <p className="text-xs leading-relaxed text-text-secondary">
+                          {segment.text}
+                        </p>
+                      </div>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-text-primary">
-                          {segment.materialTitle}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-text-tertiary">
-                        <span>片段 {segment.segmentIndex}</span>
-                        <span>·</span>
-                        <span>相关度 {(segment.relevance * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  </button>
-                  {expandedSegments.has(segment.id) && (
-                    <div className="border-t border-border px-3 py-2">
-                      <p className="text-xs text-text-secondary leading-relaxed">
-                        {segment.content}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-text-tertiary">暂无来源片段</p>
+              )}
             </div>
           </div>
         </div>
