@@ -1,9 +1,13 @@
 import {
   FileSearch,
   FileText,
+  FolderOpen,
   LayoutDashboard,
+  MessageSquare,
   Network,
   PanelLeft,
+  PenLine,
+  Sparkles,
   Table2,
   type LucideIcon,
 } from "lucide-react";
@@ -25,7 +29,33 @@ export const defaultNavItems: NavItem[] = [
     path: "/dashboard",
     icon: LayoutDashboard,
   },
-
+  {
+    label: "业务管理",
+    path: "/material",
+    icon: FolderOpen,
+    children: [
+      {
+        label: "材料管理",
+        path: "/material",
+        icon: FolderOpen,
+      },
+      {
+        label: "写作任务",
+        path: "/writing/task",
+        icon: PenLine,
+      },
+      {
+        label: "问答管理",
+        path: "/qa/session",
+        icon: MessageSquare,
+      },
+    ],
+  },
+  {
+    label: "AI 工作台",
+    path: "/workbench",
+    icon: Sparkles,
+  },
   {
     label: "页面示例",
     path: "/examples",
@@ -168,6 +198,12 @@ export function createUserMenuTitleMap(
 
 export const staticRouteTitleMap: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/material": "材料管理",
+  "/writing/task": "写作任务",
+  "/qa/session": "问答管理",
+  "/workbench": "AI 工作台",
+  "/workbench/chat": "材料问答",
+  "/workbench/writing": "辅助写作",
   "/forms/basic": "表单示例",
   "/examples": "页面示例",
   "/examples/list": "列表页 Demo",

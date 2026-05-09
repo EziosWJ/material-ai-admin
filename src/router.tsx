@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { AppShell } from "@/components/layout/app-shell";
+import { WorkbenchLayout } from "@/components/layout/workbench-layout";
 import { AccountProfilePage } from "@/pages/account-profile";
 import { ChangePasswordPage } from "@/pages/change-password";
 import { DashboardPage } from "@/pages/dashboard";
@@ -10,7 +11,9 @@ import { ListDemoPage } from "@/pages/examples/list-demo";
 import { TreeDemoPage } from "@/pages/examples/tree-demo";
 import { TreeTableDemoPage } from "@/pages/examples/tree-table-demo";
 import { LoginPage } from "@/pages/login";
+import { MaterialPage } from "@/pages/material";
 import { NotFoundPage } from "@/pages/not-found";
+import { QaSessionListPage } from "@/pages/qa";
 import { SettingsPage } from "@/pages/settings";
 import { SystemConfigsPage } from "@/pages/system/configs";
 import { SystemDeptsPage } from "@/pages/system/depts";
@@ -21,11 +24,37 @@ import { SystemOperLogsPage } from "@/pages/system/logs/oper-logs";
 import { SystemMenusPage } from "@/pages/system/menus";
 import { SystemRolesPage } from "@/pages/system/roles";
 import { UsersPage } from "@/pages/system/users";
+import { WritingTaskPage } from "@/pages/writing-task";
+import { WorkbenchHomePage } from "@/pages/workbench";
+import { WorkbenchChatPage } from "@/pages/workbench/chat";
+import { WorkbenchWritingPage } from "@/pages/workbench/writing";
 
 export const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    path: "/workbench",
+    element: (
+      <RequireAuth>
+        <WorkbenchLayout />
+      </RequireAuth>
+    ),
+    children: [
+      {
+        index: true,
+        element: <WorkbenchHomePage />,
+      },
+      {
+        path: "chat",
+        element: <WorkbenchChatPage />,
+      },
+      {
+        path: "writing",
+        element: <WorkbenchWritingPage />,
+      },
+    ],
   },
   {
     path: "/",
@@ -42,6 +71,18 @@ export const router = createBrowserRouter([
       {
         path: "dashboard",
         element: <DashboardPage />,
+      },
+      {
+        path: "material",
+        element: <MaterialPage />,
+      },
+      {
+        path: "writing/task",
+        element: <WritingTaskPage />,
+      },
+      {
+        path: "qa/session",
+        element: <QaSessionListPage />,
       },
       {
         path: "system/user",

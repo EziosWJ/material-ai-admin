@@ -123,3 +123,26 @@ export type {
   UserStatusRequest,
   UserUpdateRequest,
 } from "./user";
+export type {
+  MaterialBatchDeleteRequest,
+  MaterialCreateRequest,
+  MaterialListQuery,
+  MaterialRecord,
+  MaterialStatus,
+  MaterialUpdateRequest,
+} from "./material";
+export type {
+  SourceSegmentVO,
+  WritingResultVO,
+  WritingTaskListQuery,
+  WritingTaskStatus,
+  WritingTaskVO,
+  WritingType,
+} from "./writing";
+export type {
+  QaMaterialVO,
+  QaMessageVO,
+  QaSessionListQuery,
+  QaSessionVO,
+  QaSourceSegmentVO,
+} from "./qa";
