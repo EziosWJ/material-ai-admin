@@ -130,19 +130,26 @@ export type {
   MaterialRecord,
   MaterialStatus,
   MaterialUpdateRequest,
+  SourceSegmentVO,
 } from "./material";
 export type {
-  SourceSegmentVO,
   WritingResultVO,
   WritingTaskListQuery,
   WritingTaskStatus,
   WritingTaskVO,
   WritingType,
 } from "./writing";
+export {
+  WRITING_TYPE_LABEL,
+  WRITING_TYPE_OPTIONS,
+  WRITING_TASK_STATUS_LABEL,
+  WRITING_TASK_STATUS_OPTIONS,
+  getWritingTaskStatusMeta,
+  formatWritingType,
+} from "./writing";
 export type {
   QaMaterialVO,
   QaMessageVO,
   QaSessionListQuery,
   QaSessionVO,
-  QaSourceSegmentVO,
 } from "./qa";

@@ -93,3 +93,13 @@ export type ProcessRecordListQuery = Partial<ApiPageRequest> & {
 export type MaterialProcessTriggerRequest = {
   processType?: "initial" | "reprocess";
 };
+
+/** 来源片段 — 检索命中并用于溯源展示的片段 */
+export type SourceSegmentVO = {
+  text: string;
+  materialId: number;
+  materialTitle: string;
+  originalFilename: string;
+  segmentIndex: number;
+  score: number;
+};

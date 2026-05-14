@@ -1,19 +1,11 @@
 import type { ApiPageRequest } from "./api";
+import type { SourceSegmentVO } from "./material";
+export type { SourceSegmentVO };
 
 /** 材料关联信息 */
 export type QaMaterialVO = {
   materialId: number;
   title: string;
-  originalFilename: string;
-};
-
-/** 来源片段 */
-export type QaSourceSegmentVO = {
-  text: string;
-  materialId: number;
-  segmentIndex: number;
-  score: number;
-  materialTitle: string;
   originalFilename: string;
 };
 
@@ -23,7 +15,7 @@ export type QaMessageVO = {
   sessionId: number;
   role: "user" | "assistant" | "system";
   content: string;
-  sourceSegments: QaSourceSegmentVO[];
+  sourceSegments: SourceSegmentVO[];
   modelName: string;
   aiCallLogId: number;
   createTime: string;

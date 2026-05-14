@@ -1,4 +1,3 @@
-import { isApiError } from "@/lib/api-error";
 import type { OperLogDetail } from "@/types";
 
 type ViteImportMeta = ImportMeta & {
@@ -19,12 +18,6 @@ const operationTypeLabelMap: Record<string, string> = {
 };
 
 export const isDev = Boolean((import.meta as ViteImportMeta).env?.DEV);
-
-export function getErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
 
 export function getStatusMeta(status: string) {
   if (status === "SUCCESS") {

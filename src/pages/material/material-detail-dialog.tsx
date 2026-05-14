@@ -7,11 +7,11 @@ import { EmptyState } from "@/components/common/empty-state";
 import { StatusTag } from "@/components/common/status-tag";
 import { formatDateTime } from "@/lib/datetime";
 import type { DataTableColumn } from "@/types";
+import { getErrorMessage } from "@/lib/api-error";
 import type { MaterialProcessRecord, MaterialRecord } from "@/types/material";
 import {
   formatDuration,
   formatFileSize,
-  getMaterialErrorMessage,
   processRecordStatusOptions,
   processTypeOptions,
 } from "./utils";
@@ -160,7 +160,7 @@ export function MaterialDetailDialog({
       setRecords(data.records);
     } catch (loadError) {
       setRecords([]);
-      setError(getMaterialErrorMessage(loadError, "处理记录加载失败"));
+      setError(getErrorMessage(loadError, "处理记录加载失败"));
     } finally {
       setLoading(false);
     }

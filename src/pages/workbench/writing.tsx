@@ -3,8 +3,6 @@ import {
   Copy,
   RefreshCw,
   Download,
-  ChevronDown,
-  ChevronRight,
   Loader2,
   FileText,
 } from "lucide-react";
@@ -17,6 +15,7 @@ import { createWritingTask } from "@/api/writing";
 import { getMaterialPage } from "@/api/material";
 import type { WritingType, WritingTaskVO } from "@/types/writing";
 import type { MaterialRecord } from "@/types/material";
+import { SourceSegmentPanel } from "@/components/common/source-segment-panel";
 
 const writingTypes: { value: WritingType; label: string }[] = [
   { value: "outline", label: "提纲" },
@@ -45,11 +44,6 @@ export function WorkbenchWritingPage() {
   const [result, setResult] = useState<WritingTaskVO | null>(null);
   const [lastTaskId, setLastTaskId] = useState<number | null>(null);
 
-  // 来源片段展开状态
-  const [expandedSegments, setExpandedSegments] = useState<Set<number>>(
-    new Set()
-  );
-
   // 加载材料列表
   useEffect(() => {
     getMaterialPage({ page: 1, pageSize: 100 })
@@ -60,18 +54,6 @@ export function WorkbenchWritingPage() {
         toast.error("加载材料列表失败");
       });
   }, []);
-
-  const toggleSegment = (index: number) => {
-    setExpandedSegments((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  };
 
   const toggleMaterial = (id: number) => {
     setSelectedMaterialIds((prev) => {
@@ -155,10 +137,6 @@ export function WorkbenchWritingPage() {
   const handleRegenerate = useCallback(() => {
     handleGenerate();
   }, [handleGenerate]);
-
-  const handleSaveDraft = useCallback(() => {
-    toast.info("功能开发中");
-  }, []);
 
   const handleExport = useCallback(() => {
     const content = result?.result?.content;
@@ -417,52 +395,11 @@ export function WorkbenchWritingPage() {
           </h3>
         </div>
 
-        <div className="overflow-y-auto p-4">
-          <p className="mb-4 text-xs text-text-tertiary">
-            本次写作引用的来源片段
-          </p>
-          {sourceSegments.length === 0 ? (
-            <p className="text-xs text-text-tertiary">暂无来源片段</p>
-          ) : (
-            <div className="space-y-2">
-              {sourceSegments.map((segment, index) => (
-                <div
-                  key={`${segment.materialId}-${segment.segmentIndex}-${index}`}
-                  className="rounded-lg border border-border"
-                >
-                  <button
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left"
-                    onClick={() => toggleSegment(index)}
-                  >
-                    {expandedSegments.has(index) ? (
-                      <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                    ) : (
-                      <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-text-primary">
-                          {segment.materialTitle}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-text-tertiary">
-                        <span>片段 {segment.segmentIndex}</span>
-                        <span>·</span>
-                        <span>相关度 {(segment.score * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  </button>
-                  {expandedSegments.has(index) && (
-                    <div className="border-t border-border px-3 py-2">
-                      <p className="text-xs text-text-secondary leading-relaxed">
-                        {segment.text}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="overflow-y-auto">
+          <SourceSegmentPanel
+            segments={sourceSegments}
+            title="本次写作引用的来源片段"
+          />
         </div>
       </div>
     </div>

@@ -4,7 +4,8 @@ import { DetailDialog } from "@/components/common/detail-dialog";
 import { StatusTag } from "@/components/common/status-tag";
 import { formatDateTime } from "@/lib/datetime";
 import type { QaMessageVO, QaSessionVO } from "@/types/qa";
-import { getQaSessionErrorMessage, getQaSessionStatusMeta } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { getQaSessionStatusMeta } from "./utils";
 
 type QaSessionDetailDialogProps = {
   open: boolean;
@@ -34,7 +35,7 @@ export function QaSessionDetailDialog({
     } catch (error) {
       if (requestId.current !== currentRequestId) return;
       setMessages([]);
-      setMessagesError(getQaSessionErrorMessage(error, "消息列表加载失败"));
+      setMessagesError(getErrorMessage(error, "消息列表加载失败"));
     } finally {
       if (requestId.current === currentRequestId) {
         setMessagesLoading(false);

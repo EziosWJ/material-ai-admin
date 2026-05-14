@@ -8,7 +8,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -47,7 +47,8 @@ import {
   type DictSelectOption,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
-import { isApiError } from "@/lib/api-error";
+import { useListPage } from "@/hooks/use-list-page";
+import { getErrorMessage, isApiError } from "@/lib/api-error";
 import { formatDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 import type {
@@ -134,12 +135,6 @@ const configFormSchema = z
 
 type ConfigFormValues = z.infer<typeof configFormSchema>;
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
-
 function buildQuery(filters: FilterState, page: number, pageSize: number) {
   return {
     page,
@@ -208,15 +203,31 @@ function buildPayload(values: ConfigFormValues) {
 }
 
 export function SystemConfigsPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [configs, setConfigs] = useState<SystemConfigRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: configs,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadConfigs,
+  } = useListPage<FilterState, SystemConfigRecord>({
+    fetch: getSystemConfigPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "配置列表加载失败"),
+      }),
+  });
+
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
@@ -254,33 +265,13 @@ export function SystemConfigsPage() {
     errorTitle: "配置状态字典加载失败",
   });
 
-  const loadConfigs = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getSystemConfigPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setConfigs(data.records);
-      setTotal(data.total);
-      setSelectedIds((current) => {
-        const nextRecordIds = new Set(data.records.map((item) => item.id));
-        return new Set([...current].filter((id) => nextRecordIds.has(id)));
-      });
-    } catch (loadError) {
-      setConfigs([]);
-      setTotal(0);
-      setSelectedIds(new Set());
-      setError(getErrorMessage(loadError, "配置列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
+  // 同步 selectedIds 与当前页数据
   useEffect(() => {
-    void loadConfigs();
-  }, [loadConfigs]);
+    setSelectedIds((current) => {
+      const nextRecordIds = new Set(configs.map((item) => item.id));
+      return new Set([...current].filter((id) => nextRecordIds.has(id)));
+    });
+  }, [configs]);
 
   const selectableIds = useMemo(
     () => configs.filter((item) => !isBuiltinConfig(item)).map((item) => item.id),
@@ -293,18 +284,6 @@ export function SystemConfigsPage() {
       configs.filter((item) => selectedIds.has(item.id) && !isBuiltinConfig(item)),
     [configs, selectedIds],
   );
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const toggleSelectAll = (checked: boolean) => {
     setSelectedIds((current) => {
@@ -659,34 +638,21 @@ export function SystemConfigsPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={submitFilters}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.configName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                configName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("configName", event.target.value)}
             placeholder="配置名称"
           />
           <Input
             value={filters.configKey}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                configKey: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("configKey", event.target.value)}
             placeholder="配置键"
           />
           <Select
             value={filters.configType}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                configType: event.target.value as FilterState["configType"],
-              }))
+              setFilter("configType", event.target.value as FilterState["configType"])
             }
             aria-label="筛选配置类型"
           >
@@ -700,13 +666,12 @@ export function SystemConfigsPage() {
           <Select
             value={String(filters.status)}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -772,10 +737,7 @@ export function SystemConfigsPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

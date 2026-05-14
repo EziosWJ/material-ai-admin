@@ -1,12 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   createDept,
@@ -35,6 +29,7 @@ import {
   DICT_CODES,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
+import { useListPage } from "@/hooks/use-list-page";
 import { isApiError } from "@/lib/api-error";
 import type { ApiStatus, DeptOption, DeptRecord } from "@/types";
 import { createDeptColumns } from "./columns";
@@ -49,22 +44,38 @@ import {
   type DeptFormValues,
   type FilterState,
 } from "./schema";
-import { getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
 
 type ConfirmAction =
   | { type: "delete"; dept: DeptRecord }
   | { type: "status"; dept: DeptRecord; status: ApiStatus };
 
 export function SystemDeptsPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [depts, setDepts] = useState<DeptRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: depts,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadDepts,
+  } = useListPage<FilterState, DeptRecord>({
+    fetch: getDeptPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "部门列表加载失败"),
+      }),
+  });
+
   const [deptOptions, setDeptOptions] = useState<DeptOption[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -86,23 +97,6 @@ export function SystemDeptsPage() {
     errorTitle: "部门状态字典加载失败",
   });
 
-  const loadDepts = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getDeptPage(buildQuery(appliedFilters, page, pageSize));
-      setDepts(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setDepts([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "部门列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
   const loadDeptOptions = useCallback(async () => {
     setOptionsLoading(true);
 
@@ -121,24 +115,8 @@ export function SystemDeptsPage() {
   }, []);
 
   useEffect(() => {
-    void loadDepts();
-  }, [loadDepts]);
-
-  useEffect(() => {
     void loadDeptOptions();
   }, [loadDeptOptions]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -288,37 +266,26 @@ export function SystemDeptsPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={(event) => submitFilters(event)}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.deptName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                deptName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("deptName", event.target.value)}
             placeholder="部门名称"
           />
           <Input
             value={filters.deptCode}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                deptCode: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("deptCode", event.target.value)}
             placeholder="部门编码"
           />
           <Select
             value={String(filters.status)}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -370,10 +337,7 @@ export function SystemDeptsPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

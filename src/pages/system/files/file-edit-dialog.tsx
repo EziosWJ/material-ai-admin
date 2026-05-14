@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import type { DictSelectOption } from "@/constants/dicts";
 import type { FileRecord } from "@/types";
-import { getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
 
 const fileEditSchema = z.object({
   businessModule: z

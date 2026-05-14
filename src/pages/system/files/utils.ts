@@ -1,5 +1,3 @@
-import { isApiError } from "@/lib/api-error";
-
 const SIZE_UNITS = ["B", "KB", "MB", "GB"] as const;
 
 export function formatFileSize(bytes: number | undefined | null): string {
@@ -33,10 +31,4 @@ export function downloadBlob(blob: Blob, filename: string) {
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
-}
-
-export function getErrorMessage(error: unknown, fallback: string): string {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
 }

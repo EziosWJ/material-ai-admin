@@ -1,10 +1,5 @@
 import { Eye, RefreshCw, RotateCcw, Search, Trash2 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useState } from "react";
 import { clearOperLogs, getOperLogDetail, getOperLogPage } from "@/api/log";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { DataTable } from "@/components/common/data-table";
@@ -25,15 +20,12 @@ import {
   type DictSelectOption,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
+import { useListPage } from "@/hooks/use-list-page";
 import { formatDateTime } from "@/lib/datetime";
-import type { DataTableColumn, OperLogDetail, OperLogRecord } from "@/types";
+import type { DataTableColumn, OperLogDetail, OperLogListQuery, OperLogRecord } from "@/types";
 import { OperLogDetailDialog } from "./oper-log-detail-dialog";
-import {
-  getErrorMessage,
-  getOperationTypeLabel,
-  getStatusMeta,
-  isDev,
-} from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { getOperationTypeLabel, getStatusMeta, isDev } from "./utils";
 
 type FilterState = {
   moduleName: string;
@@ -67,15 +59,31 @@ function getDictLabel(options: DictSelectOption[], value: string) {
 }
 
 export function SystemOperLogsPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [logs, setLogs] = useState<OperLogRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: logs,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadLogs,
+  } = useListPage<FilterState, OperLogRecord, OperLogListQuery>({
+    fetch: getOperLogPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "操作日志加载失败"),
+      }),
+  });
+
   const [detail, setDetail] = useState<OperLogDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
@@ -91,41 +99,6 @@ export function SystemOperLogsPage() {
     showErrorToast: true,
     errorTitle: "日志状态字典加载失败",
   });
-
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getOperLogPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setLogs(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setLogs([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "操作日志加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadLogs();
-  }, [loadLogs]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openDetail = async (record: OperLogRecord) => {
     setDetail(record);
@@ -281,7 +254,7 @@ export function SystemOperLogsPage() {
         description="查看系统操作记录，支持按模块、类型、操作人和状态筛选。"
       />
 
-      <form onSubmit={submitFilters}>
+      <form onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
         <SearchFilterBar
           actions={
             <>
@@ -298,23 +271,13 @@ export function SystemOperLogsPage() {
         >
           <Input
             value={filters.moduleName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                moduleName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("moduleName", event.target.value)}
             placeholder="搜索模块名称"
             aria-label="搜索模块名称"
           />
           <Select
             value={filters.operationType}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                operationType: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("operationType", event.target.value)}
             aria-label="筛选操作类型"
           >
             <option value="all">全部类型</option>
@@ -326,23 +289,13 @@ export function SystemOperLogsPage() {
           </Select>
           <Input
             value={filters.operatorName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                operatorName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("operatorName", event.target.value)}
             placeholder="搜索操作人"
             aria-label="搜索操作人"
           />
           <Select
             value={filters.operationStatus}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                operationStatus: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("operationStatus", event.target.value)}
             aria-label="筛选操作状态"
           >
             <option value="all">全部状态</option>
@@ -406,10 +359,7 @@ export function SystemOperLogsPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

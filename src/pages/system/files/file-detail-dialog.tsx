@@ -5,7 +5,8 @@ import { DetailDialog } from "@/components/common/detail-dialog";
 import { DetailItem } from "@/components/common/detail-item";
 import type { FileRecord } from "@/types";
 import { formatDateTime } from "@/lib/datetime";
-import { formatFileSize, getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { formatFileSize } from "./utils";
 
 type FileDetailDialogProps = {
   open: boolean;

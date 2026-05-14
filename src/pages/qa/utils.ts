@@ -1,12 +1,3 @@
-import { isApiError } from "@/lib/api-error";
-
-/** 获取错误信息 */
-export function getQaSessionErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
-
 /** 会话状态选项 */
 export const qaSessionStatusOptions = [
   { value: "active", label: "进行中" },

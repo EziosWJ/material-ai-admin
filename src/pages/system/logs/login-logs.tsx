@@ -1,10 +1,5 @@
 import { Eye, RefreshCw, RotateCcw, Search, Trash2 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useState } from "react";
 import {
   clearLoginLogs,
   getLoginLogDetail,
@@ -28,10 +23,12 @@ import {
   type DictSelectOption,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
+import { useListPage } from "@/hooks/use-list-page";
 import { formatDateTime } from "@/lib/datetime";
-import type { DataTableColumn, LoginLogRecord } from "@/types";
+import type { DataTableColumn, LoginLogListQuery, LoginLogRecord } from "@/types";
 import { LoginLogDetailDialog } from "./login-log-detail-dialog";
-import { getErrorMessage, getStatusMeta, isDev } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { getStatusMeta, isDev } from "./utils";
 
 type FilterState = {
   username: string;
@@ -61,15 +58,31 @@ function getDictLabel(options: DictSelectOption[], value: string) {
 }
 
 export function SystemLoginLogsPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [logs, setLogs] = useState<LoginLogRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: logs,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadLogs,
+  } = useListPage<FilterState, LoginLogRecord, LoginLogListQuery>({
+    fetch: getLoginLogPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "登录日志加载失败"),
+      }),
+  });
+
   const [detail, setDetail] = useState<LoginLogRecord | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
@@ -80,41 +93,6 @@ export function SystemLoginLogsPage() {
     showErrorToast: true,
     errorTitle: "日志状态字典加载失败",
   });
-
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getLoginLogPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setLogs(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setLogs([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "登录日志加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadLogs();
-  }, [loadLogs]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openDetail = async (record: LoginLogRecord) => {
     setDetail(record);
@@ -247,7 +225,7 @@ export function SystemLoginLogsPage() {
         description="查看系统用户登录记录，支持按用户、状态和 IP 筛选。"
       />
 
-      <form onSubmit={submitFilters}>
+      <form onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
         <SearchFilterBar
           actions={
             <>
@@ -264,23 +242,13 @@ export function SystemLoginLogsPage() {
         >
           <Input
             value={filters.username}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                username: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("username", event.target.value)}
             placeholder="搜索用户名"
             aria-label="搜索用户名"
           />
           <Select
             value={filters.loginStatus}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                loginStatus: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("loginStatus", event.target.value)}
             aria-label="筛选登录状态"
           >
             <option value="all">全部状态</option>
@@ -292,12 +260,7 @@ export function SystemLoginLogsPage() {
           </Select>
           <Input
             value={filters.loginIp}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                loginIp: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("loginIp", event.target.value)}
             placeholder="搜索登录 IP"
             aria-label="搜索登录 IP"
           />
@@ -355,10 +318,7 @@ export function SystemLoginLogsPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

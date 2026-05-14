@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   assignUserRoles,
@@ -33,7 +33,8 @@ import {
   USER_GENDER_VALUES,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
-import { isApiError } from "@/lib/api-error";
+import { useListPage } from "@/hooks/use-list-page";
+import { getErrorMessage, isApiError } from "@/lib/api-error";
 import type { ApiStatus, AssignableRole, UserGender, UserRecord } from "@/types";
 import { createUserColumns } from "./columns";
 import { PasswordResultDialog } from "./password-result-dialog";
@@ -49,7 +50,6 @@ import {
   type UserFormValues,
 } from "./schema";
 import { UserFormDialog } from "./user-form-dialog";
-import { getErrorMessage } from "./utils";
 
 type ConfirmAction =
   | { type: "delete"; user: UserRecord }
@@ -57,15 +57,31 @@ type ConfirmAction =
   | { type: "resetPassword"; user: UserRecord };
 
 export function UsersPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [users, setUsers] = useState<UserRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: users,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadUsers,
+  } = useListPage<FilterState, UserRecord>({
+    fetch: getUserPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "用户列表加载失败"),
+      }),
+  });
+
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<UserFormMode>("create");
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
@@ -101,39 +117,6 @@ export function UsersPage() {
     showErrorToast: true,
     errorTitle: "用户性别字典加载失败",
   });
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getUserPage(buildQuery(appliedFilters, page, pageSize));
-      setUsers(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setUsers([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "用户列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
-
-  const submitFilters = (event?: React.FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -339,62 +322,42 @@ export function UsersPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={(event) => submitFilters(event)}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.username}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                username: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("username", event.target.value)}
             placeholder="用户名"
           />
           <Input
             value={filters.nickname}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                nickname: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("nickname", event.target.value)}
             placeholder="昵称"
           />
           <Input
             value={filters.phone}
-            onChange={(event) =>
-              setFilters((current) => ({ ...current, phone: event.target.value }))
-            }
+            onChange={(event) => setFilter("phone", event.target.value)}
             placeholder="手机号"
           />
           <Input
             value={filters.email}
-            onChange={(event) =>
-              setFilters((current) => ({ ...current, email: event.target.value }))
-            }
+            onChange={(event) => setFilter("email", event.target.value)}
             placeholder="邮箱"
           />
           <Input
             value={filters.deptId}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                deptId: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("deptId", event.target.value)}
             placeholder="部门 ID"
             inputMode="numeric"
           />
           <Select
             value={String(filters.status)}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -446,10 +409,7 @@ export function UsersPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

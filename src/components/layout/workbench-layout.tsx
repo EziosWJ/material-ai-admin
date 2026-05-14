@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { ArrowLeft, MessageSquareText, PenLine, Home } from "lucide-react";
 import { UserMenu } from "@/components/layout/user-menu";

@@ -1,5 +1,5 @@
 import { RefreshCw, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { getQaSessionPage } from "@/api/qa";
 import { DataTable } from "@/components/common/data-table";
 import { EmptyState } from "@/components/common/empty-state";
@@ -10,59 +10,43 @@ import { StatusTag } from "@/components/common/status-tag";
 import { TableToolbar } from "@/components/common/table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { useListPage } from "@/hooks/use-list-page";
 import type { QaSessionVO } from "@/types/qa";
 import { createQaSessionColumns } from "./columns";
 import { QaSessionDetailDialog } from "./qa-session-detail-dialog";
 import { buildQuery, DEFAULT_FILTERS, type QaSessionFilterValues } from "./schema";
-import { getQaSessionErrorMessage, qaSessionStatusOptions } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { qaSessionStatusOptions } from "./utils";
+import { toast } from "@/components/common/toast-store";
 
 export function QaSessionListPage() {
-  const [filters, setFilters] = useState<QaSessionFilterValues>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<QaSessionFilterValues>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [sessions, setSessions] = useState<QaSessionVO[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: sessions,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadSessions,
+  } = useListPage<QaSessionFilterValues, QaSessionVO>({
+    fetch: getQaSessionPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "会话列表加载失败"),
+      }),
+  });
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<QaSessionVO | null>(null);
-
-  const loadSessions = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getQaSessionPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setSessions(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setSessions([]);
-      setTotal(0);
-      setError(getQaSessionErrorMessage(loadError, "会话列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
-
-  const submitFilters = (event?: React.FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openDetail = (session: QaSessionVO) => {
     setDetailRecord(session);
@@ -94,15 +78,10 @@ export function QaSessionListPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={(event) => submitFilters(event)}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Select
             value={filters.status}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("status", event.target.value)}
             aria-label="筛选状态"
           >
             <option value="all">全部状态</option>
@@ -153,10 +132,7 @@ export function QaSessionListPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

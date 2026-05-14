@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { DictSelectOption } from "@/constants/dicts";
 import type { FileRecord } from "@/types";
-import { getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
 
 type FileUploadDialogProps = {
   open: boolean;

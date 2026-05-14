@@ -32,7 +32,7 @@ import {
   MENU_VISIBLE_OPTIONS,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
-import { isApiError } from "@/lib/api-error";
+import { getErrorMessage, isApiError } from "@/lib/api-error";
 import type {
   ApiStatus,
   SystemMenuRecord,
@@ -59,12 +59,6 @@ import {
 type ConfirmAction =
   | { type: "delete"; menu: SystemMenuRecord }
   | { type: "status"; menu: SystemMenuRecord; status: ApiStatus };
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
 
 export function SystemMenusPage() {
   const [filters, setFilters] = useState<MenuFilterState>(DEFAULT_MENU_FILTERS);

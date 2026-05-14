@@ -38,6 +38,7 @@ import {
   DICT_CODES,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
+import { useListPage } from "@/hooks/use-list-page";
 import { isApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type {
@@ -65,7 +66,7 @@ import {
   type ItemFilterState,
   type TypeFilterState,
 } from "./schema";
-import { getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
 
 type ConfirmAction =
   | { type: "deleteType"; dictType: SystemDictTypeRecord }
@@ -73,28 +74,45 @@ type ConfirmAction =
   | { type: "deleteData"; dictData: SystemDictDataRecord };
 
 export function SystemDictsPage() {
-  const [typeFilters, setTypeFilters] =
-    useState<TypeFilterState>(DEFAULT_TYPE_FILTERS);
-  const [appliedTypeFilters, setAppliedTypeFilters] =
-    useState<TypeFilterState>(DEFAULT_TYPE_FILTERS);
+  // 类型列表 - useListPage
+  const {
+    data: dictTypes,
+    total: typeTotal,
+    loading: typeLoading,
+    error: typeError,
+    page: typePage,
+    pageSize: typePageSize,
+    setPage: setTypePage,
+    setPageSize: setTypePageSize,
+    filters: typeFilters,
+    setFilter: setTypeFilter,
+    submitFilters: submitTypeFilters,
+    resetFilters: resetTypeFilters,
+    reload: loadDictTypes,
+  } = useListPage<TypeFilterState, SystemDictTypeRecord>({
+    fetch: getDictTypePage,
+    defaultFilters: DEFAULT_TYPE_FILTERS,
+    toQuery: (f, p, ps) => buildTypeQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "字典类型加载失败"),
+      }),
+  });
+
+  // 字典项列表 - 保留手动管理（依赖 selectedTypeId）
   const [itemFilters, setItemFilters] =
     useState<ItemFilterState>(DEFAULT_ITEM_FILTERS);
   const [appliedItemFilters, setAppliedItemFilters] =
     useState<ItemFilterState>(DEFAULT_ITEM_FILTERS);
-  const [typePage, setTypePage] = useState(1);
-  const [typePageSize, setTypePageSize] = useState(10);
   const [itemPage, setItemPage] = useState(1);
   const [itemPageSize, setItemPageSize] = useState(10);
-  const [dictTypes, setDictTypes] = useState<SystemDictTypeRecord[]>([]);
   const [dictItems, setDictItems] = useState<SystemDictDataRecord[]>([]);
-  const [typeTotal, setTypeTotal] = useState(0);
   const [itemTotal, setItemTotal] = useState(0);
   const [activeType, setActiveType] = useState<SystemDictTypeRecord | null>(
     null,
   );
-  const [typeLoading, setTypeLoading] = useState(false);
   const [itemLoading, setItemLoading] = useState(false);
-  const [typeError, setTypeError] = useState("");
   const [itemError, setItemError] = useState("");
   const [typeFormOpen, setTypeFormOpen] = useState(false);
   const [typeFormMode, setTypeFormMode] = useState<FormMode>("create");
@@ -130,30 +148,14 @@ export function SystemDictsPage() {
   const selectedType = activeType;
   const selectedTypeId = activeType?.id ?? null;
 
-  const loadDictTypes = useCallback(async () => {
-    setTypeLoading(true);
-    setTypeError("");
-
-    try {
-      const data = await getDictTypePage(
-        buildTypeQuery(appliedTypeFilters, typePage, typePageSize),
-      );
-      setDictTypes(data.records);
-      setTypeTotal(data.total);
-      setActiveType((current) => {
-        if (!current) return current;
-
-        const next = data.records.find((item) => item.id === current.id);
-        return next ?? current;
-      });
-    } catch (loadError) {
-      setDictTypes([]);
-      setTypeTotal(0);
-      setTypeError(getErrorMessage(loadError, "字典类型加载失败"));
-    } finally {
-      setTypeLoading(false);
-    }
-  }, [appliedTypeFilters, typePage, typePageSize]);
+  // 同步 activeType 与类型列表数据
+  useEffect(() => {
+    setActiveType((current) => {
+      if (!current) return current;
+      const next = dictTypes.find((item) => item.id === current.id);
+      return next ?? current;
+    });
+  }, [dictTypes]);
 
   const loadDictItems = useCallback(async () => {
     if (!selectedTypeId) {
@@ -181,24 +183,8 @@ export function SystemDictsPage() {
   }, [appliedItemFilters, itemPage, itemPageSize, selectedTypeId]);
 
   useEffect(() => {
-    void loadDictTypes();
-  }, [loadDictTypes]);
-
-  useEffect(() => {
     void loadDictItems();
   }, [loadDictItems]);
-
-  const submitTypeFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setTypePage(1);
-    setAppliedTypeFilters(typeFilters);
-  };
-
-  const resetTypeFilters = () => {
-    setTypeFilters(DEFAULT_TYPE_FILTERS);
-    setAppliedTypeFilters(DEFAULT_TYPE_FILTERS);
-    setTypePage(1);
-  };
 
   const submitItemFilters = (event?: FormEvent) => {
     event?.preventDefault();
@@ -453,37 +439,26 @@ export function SystemDictsPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={submitTypeFilters}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitTypeFilters(); }}>
           <Input
             value={typeFilters.dictName}
-            onChange={(event) =>
-              setTypeFilters((current) => ({
-                ...current,
-                dictName: event.target.value,
-              }))
-            }
+            onChange={(event) => setTypeFilter("dictName", event.target.value)}
             placeholder="字典名称"
           />
           <Input
             value={typeFilters.dictCode}
-            onChange={(event) =>
-              setTypeFilters((current) => ({
-                ...current,
-                dictCode: event.target.value,
-              }))
-            }
+            onChange={(event) => setTypeFilter("dictCode", event.target.value)}
             placeholder="字典编码"
           />
           <Select
             value={String(typeFilters.status)}
             onChange={(event) =>
-              setTypeFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setTypeFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -549,10 +524,7 @@ export function SystemDictsPage() {
             total={typeTotal}
             disabled={typeLoading}
             onPageChange={setTypePage}
-            onPageSizeChange={(nextPageSize) => {
-              setTypePageSize(nextPageSize);
-              setTypePage(1);
-            }}
+            onPageSizeChange={setTypePageSize}
           />
         </section>
 

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   createMaterial,
@@ -23,8 +23,9 @@ import { toast } from "@/components/common/toast-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { isApiError } from "@/lib/api-error";
-import type { MaterialRecord, MaterialStatus } from "@/types/material";
+import { useListPage } from "@/hooks/use-list-page";
+import { getErrorMessage, isApiError } from "@/lib/api-error";
+import type { MaterialRecord } from "@/types/material";
 import { createMaterialColumns } from "./columns";
 import {
   buildPayload,
@@ -38,7 +39,7 @@ import {
 } from "./schema";
 import { MaterialDetailDialog } from "./material-detail-dialog";
 import { MaterialFormDialog } from "./material-form-dialog";
-import { getMaterialErrorMessage, materialStatusOptions } from "./utils";
+import { materialStatusOptions } from "./utils";
 import type { FileRecord } from "@/types/file";
 
 /** 确认操作类型 */
@@ -48,20 +49,31 @@ type ConfirmAction =
   | { type: "deleteVector"; record: MaterialRecord };
 
 export function MaterialPage() {
-  // 筛选状态
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-
-  // 分页状态
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  // 数据状态
-  const [materials, setMaterials] = useState<MaterialRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // 列表数据
+  const {
+    data: materials,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadMaterials,
+  } = useListPage<FilterState, MaterialRecord>({
+    fetch: getMaterialPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "材料列表加载失败"),
+      }),
+  });
 
   // 表单状态
   const [formOpen, setFormOpen] = useState(false);
@@ -88,43 +100,6 @@ export function MaterialPage() {
     defaultValues: toFormValues(),
   });
 
-  // 加载数据
-  const loadMaterials = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getMaterialPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setMaterials(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setMaterials([]);
-      setTotal(0);
-      setError(getMaterialErrorMessage(loadError, "材料列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadMaterials();
-  }, [loadMaterials]);
-
-  // 筛选操作
-  const submitFilters = (event?: React.FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
-
   // 表单操作
   const openCreateForm = () => {
     setFormMode("create");
@@ -147,7 +122,7 @@ export function MaterialPage() {
     } catch (detailError) {
       toast.error({
         title: "材料详情加载失败",
-        description: getMaterialErrorMessage(detailError, "无法获取材料详情"),
+        description: getErrorMessage(detailError, "无法获取材料详情"),
       });
     }
   };
@@ -191,7 +166,7 @@ export function MaterialPage() {
 
       toast.error({
         title: formMode === "edit" ? "更新失败" : "创建失败",
-        description: getMaterialErrorMessage(submitError, "请检查表单后重试"),
+        description: getErrorMessage(submitError, "请检查表单后重试"),
       });
     } finally {
       setFormSubmitting(false);
@@ -220,7 +195,7 @@ export function MaterialPage() {
     } catch (actionError) {
       toast.error({
         title: "操作失败",
-        description: getMaterialErrorMessage(actionError, "请稍后重试"),
+        description: getErrorMessage(actionError, "请稍后重试"),
       });
     } finally {
       setConfirmLoading(false);
@@ -301,24 +276,16 @@ export function MaterialPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={(event) => submitFilters(event)}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.title}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                title: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("title", event.target.value)}
             placeholder="材料标题"
           />
           <Select
             value={filters.status}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status: event.target.value as FilterState["status"],
-              }))
+              setFilter("status", event.target.value as FilterState["status"])
             }
             aria-label="筛选状态"
           >
@@ -331,12 +298,7 @@ export function MaterialPage() {
           </Select>
           <Input
             value={filters.fileType}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                fileType: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("fileType", event.target.value)}
             placeholder="文件类型"
           />
         </form>
@@ -380,10 +342,7 @@ export function MaterialPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

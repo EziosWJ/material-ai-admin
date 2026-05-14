@@ -3,8 +3,6 @@ import {
   Plus,
   Send,
   FileText,
-  ChevronDown,
-  ChevronRight,
   User,
   Bot,
   Quote,
@@ -18,9 +16,11 @@ import {
   getQaSessionPage,
   askQuestion,
 } from "@/api/qa";
-import type { QaMessageVO, QaSessionVO, QaSourceSegmentVO } from "@/types/qa";
+import type { QaMessageVO, QaSessionVO } from "@/types/qa";
+import type { SourceSegmentVO } from "@/types/material";
 import { formatDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
+import { SourceSegmentPanel } from "@/components/common/source-segment-panel";
 
 export function WorkbenchChatPage() {
   const [sessions, setSessions] = useState<QaSessionVO[]>([]);
@@ -31,10 +31,6 @@ export function WorkbenchChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [expandedSegments, setExpandedSegments] = useState<Set<number>>(
-    new Set(),
-  );
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 加载会话列表
@@ -128,18 +124,6 @@ export function WorkbenchChatPage() {
     }
   };
 
-  const toggleSegment = (segmentIndex: number) => {
-    setExpandedSegments((prev) => {
-      const next = new Set(prev);
-      if (next.has(segmentIndex)) {
-        next.delete(segmentIndex);
-      } else {
-        next.add(segmentIndex);
-      }
-      return next;
-    });
-  };
-
   // 当前选中会话
   const selectedSession = sessions.find((s) => s.id === selectedSessionId);
 
@@ -147,7 +131,7 @@ export function WorkbenchChatPage() {
   const lastAssistantMessage = [...messages]
     .reverse()
     .find((m) => m.role === "assistant");
-  const sourceSegments: QaSourceSegmentVO[] =
+  const sourceSegments: SourceSegmentVO[] =
     lastAssistantMessage?.sourceSegments ?? [];
 
   return (
@@ -337,55 +321,7 @@ export function WorkbenchChatPage() {
           </div>
 
           {/* 来源片段列表 */}
-          <div className="p-4">
-            <h4 className="mb-3 text-xs font-medium text-text-tertiary">
-              来源片段
-            </h4>
-            <div className="space-y-2">
-              {sourceSegments.length > 0 ? (
-                sourceSegments.map((segment, index) => (
-                  <div
-                    key={`${segment.materialId}-${segment.segmentIndex}-${index}`}
-                    className="rounded-lg border border-border"
-                  >
-                    <button
-                      className="flex w-full items-start gap-2 px-3 py-2 text-left"
-                      onClick={() => toggleSegment(index)}
-                    >
-                      {expandedSegments.has(index) ? (
-                        <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                      ) : (
-                        <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-tertiary" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium text-text-primary">
-                            {segment.materialTitle}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-text-tertiary">
-                          <span>片段 {segment.segmentIndex}</span>
-                          <span>·</span>
-                          <span>
-                            相关度 {(segment.score * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                    {expandedSegments.has(index) && (
-                      <div className="border-t border-border px-3 py-2">
-                        <p className="text-xs leading-relaxed text-text-secondary">
-                          {segment.text}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-text-tertiary">暂无来源片段</p>
-              )}
-            </div>
-          </div>
+          <SourceSegmentPanel segments={sourceSegments} />
         </div>
       </div>
     </div>

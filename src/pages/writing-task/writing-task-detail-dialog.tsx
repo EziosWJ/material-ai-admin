@@ -126,7 +126,7 @@ export function WritingTaskDetailDialog({
                   来源片段（{detail.result.sourceSegments.length}）
                 </h4>
                 <div className="space-y-3">
-                  {detail.result.sourceSegments.map((segment, index) => (
+                  {detail.result.sourceSegments.map((segment) => (
                     <div
                       key={`${segment.materialId}-${segment.segmentIndex}`}
                       className="rounded-md border border-border bg-surface-secondary p-3"

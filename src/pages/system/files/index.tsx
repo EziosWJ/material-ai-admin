@@ -5,7 +5,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   batchDeleteFiles,
   deleteFile,
@@ -31,13 +31,15 @@ import {
   DICT_CODES,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
+import { useListPage } from "@/hooks/use-list-page";
 import type { ApiStatus, FileRecord } from "@/types";
 import { createFileColumns } from "./columns";
 import { FileDetailDialog } from "./file-detail-dialog";
 import { FileEditDialog } from "./file-edit-dialog";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import { FileUploadDialog } from "./file-upload-dialog";
-import { downloadBlob, getErrorMessage } from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { downloadBlob } from "./utils";
 
 type FilterState = {
   originalName: string;
@@ -70,15 +72,31 @@ function buildQuery(filters: FilterState, page: number, pageSize: number) {
 }
 
 export function SystemFilesPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [files, setFiles] = useState<FileRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: files,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadFiles,
+  } = useListPage<FilterState, FileRecord>({
+    fetch: getFilePage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "文件列表加载失败"),
+      }),
+  });
+
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -99,45 +117,13 @@ export function SystemFilesPage() {
     errorTitle: "文件状态字典加载失败",
   });
 
-  const loadFiles = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getFilePage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setFiles(data.records);
-      setTotal(data.total);
-      setSelectedIds((current) => {
-        const nextRecordIds = new Set(data.records.map((item) => item.id));
-        return new Set([...current].filter((id) => nextRecordIds.has(id)));
-      });
-    } catch (loadError) {
-      setFiles([]);
-      setTotal(0);
-      setSelectedIds(new Set());
-      setError(getErrorMessage(loadError, "文件列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
+  // 同步 selectedIds 与当前页数据
   useEffect(() => {
-    void loadFiles();
-  }, [loadFiles]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
+    setSelectedIds((current) => {
+      const nextRecordIds = new Set(files.map((item) => item.id));
+      return new Set([...current].filter((id) => nextRecordIds.has(id)));
+    });
+  }, [files]);
 
   const toggleSelect = useCallback((id: number, checked: boolean) => {
     setSelectedIds((current) => {
@@ -327,26 +313,16 @@ export function SystemFilesPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={submitFilters}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.originalName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                originalName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("originalName", event.target.value)}
             placeholder="文件名"
           />
           {businessModuleDict.options.length > 0 ? (
             <Select
               value={filters.businessModule}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  businessModule: event.target.value,
-                }))
-              }
+              onChange={(event) => setFilter("businessModule", event.target.value)}
               aria-label="筛选业务模块"
             >
               <option value="">全部业务模块</option>
@@ -359,35 +335,24 @@ export function SystemFilesPage() {
           ) : (
             <Input
               value={filters.businessModule}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  businessModule: event.target.value,
-                }))
-              }
+              onChange={(event) => setFilter("businessModule", event.target.value)}
               placeholder="业务模块"
             />
           )}
           <Input
             value={filters.mimeType}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                mimeType: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("mimeType", event.target.value)}
             placeholder="MIME 类型"
           />
           <Select
             value={String(filters.status)}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -453,10 +418,7 @@ export function SystemFilesPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

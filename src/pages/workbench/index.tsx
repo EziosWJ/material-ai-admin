@@ -11,21 +11,8 @@ import { getQaSessionPage } from "@/api/qa";
 import { getWritingTaskPage } from "@/api/writing";
 import type { MaterialRecord } from "@/types/material";
 import type { QaSessionVO } from "@/types/qa";
-import type { WritingTaskVO, WritingType, WritingTaskStatus } from "@/types/writing";
-
-const WRITING_TYPE_LABEL: Record<WritingType, string> = {
-  outline: "提纲",
-  draft: "初稿",
-  polished: "润色",
-  title: "标题",
-};
-
-const TASK_STATUS_LABEL: Record<WritingTaskStatus, string> = {
-  pending: "待处理",
-  running: "运行中",
-  success: "成功",
-  failed: "失败",
-};
+import type { WritingTaskVO, WritingTaskStatus } from "@/types/writing";
+import { WRITING_TYPE_LABEL, WRITING_TASK_STATUS_LABEL } from "@/types/writing";
 
 const TASK_STATUS_CLASS: Record<WritingTaskStatus, string> = {
   pending: "bg-slate-100 text-slate-700",
@@ -324,7 +311,7 @@ export function WorkbenchHomePage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TASK_STATUS_CLASS[task.status]}`}
                       >
-                        {TASK_STATUS_LABEL[task.status]}
+                        {WRITING_TASK_STATUS_LABEL[task.status]}
                       </span>
                       <span className="text-xs text-text-tertiary">
                         {WRITING_TYPE_LABEL[task.writingType]}

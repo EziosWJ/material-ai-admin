@@ -1,12 +1,4 @@
-import { isApiError } from "@/lib/api-error";
 import type { MaterialStatus } from "@/types/material";
-
-/** 获取错误消息 */
-export function getMaterialErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
 
 /** 格式化文件大小 */
 export function formatFileSize(bytes: number): string {

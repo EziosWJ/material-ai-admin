@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   assignRoleMenus,
@@ -30,7 +30,8 @@ import {
   DICT_CODES,
 } from "@/constants/dicts";
 import { useDictOptions } from "@/hooks/use-dict-options";
-import { isApiError } from "@/lib/api-error";
+import { useListPage } from "@/hooks/use-list-page";
+import { getErrorMessage, isApiError } from "@/lib/api-error";
 import type {
   ApiStatus,
   RoleDetailRecord,
@@ -57,22 +58,32 @@ type ConfirmAction =
   | { type: "delete"; role: RoleListRecord }
   | { type: "status"; role: RoleListRecord; status: ApiStatus };
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (isApiError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
-
 export function SystemRolesPage() {
-  const [filters, setFilters] = useState<RoleFilterState>(DEFAULT_ROLE_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<RoleFilterState>(DEFAULT_ROLE_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [roles, setRoles] = useState<RoleListRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: roles,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadRoles,
+  } = useListPage<RoleFilterState, RoleListRecord>({
+    fetch: getRolePage,
+    defaultFilters: DEFAULT_ROLE_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "角色列表加载失败"),
+      }),
+  });
+
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<RoleFormMode>("create");
   const [editingRole, setEditingRole] = useState<RoleListRecord | null>(null);
@@ -100,39 +111,6 @@ export function SystemRolesPage() {
     showErrorToast: true,
     errorTitle: "角色状态字典加载失败",
   });
-
-  const loadRoles = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getRolePage(buildQuery(appliedFilters, page, pageSize));
-      setRoles(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setRoles([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "角色列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadRoles();
-  }, [loadRoles]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_ROLE_FILTERS);
-    setAppliedFilters(DEFAULT_ROLE_FILTERS);
-    setPage(1);
-  };
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -336,37 +314,26 @@ export function SystemRolesPage() {
           </>
         }
       >
-        <form className="contents" onSubmit={(event) => submitFilters(event)}>
+        <form className="contents" onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
           <Input
             value={filters.roleName}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                roleName: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("roleName", event.target.value)}
             placeholder="角色名称"
           />
           <Input
             value={filters.roleCode}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                roleCode: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("roleCode", event.target.value)}
             placeholder="角色编码"
           />
           <Select
             value={String(filters.status)}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status:
-                  event.target.value === "all"
-                    ? "all"
-                    : (Number(event.target.value) as ApiStatus),
-              }))
+              setFilter(
+                "status",
+                event.target.value === "all"
+                  ? "all"
+                  : (Number(event.target.value) as ApiStatus),
+              )
             }
             aria-label="筛选状态"
           >
@@ -418,10 +385,7 @@ export function SystemRolesPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 

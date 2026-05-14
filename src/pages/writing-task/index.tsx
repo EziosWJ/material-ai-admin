@@ -1,6 +1,7 @@
-import { Eye, RefreshCw, RotateCcw, Search } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { RefreshCw, RotateCcw, Search } from "lucide-react";
+import { useState } from "react";
 import { getWritingTaskDetail, getWritingTaskPage } from "@/api/writing";
+import { useListPage } from "@/hooks/use-list-page";
 import { DataTable } from "@/components/common/data-table";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
@@ -15,61 +16,39 @@ import { Select } from "@/components/ui/select";
 import type { WritingTaskVO } from "@/types/writing";
 import { createWritingTaskColumns } from "./columns";
 import { DEFAULT_FILTERS, buildQuery, type FilterState } from "./schema";
-import {
-  getErrorMessage,
-  writingTaskStatusOptions,
-  writingTypeOptions,
-} from "./utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { writingTaskStatusOptions, writingTypeOptions } from "./utils";
 import { WritingTaskDetailDialog } from "./writing-task-detail-dialog";
 
 export function WritingTaskPage() {
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<FilterState>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [tasks, setTasks] = useState<WritingTaskVO[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: tasks,
+    total,
+    loading,
+    error,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    filters,
+    setFilter,
+    submitFilters,
+    resetFilters,
+    reload: loadTasks,
+  } = useListPage<FilterState, WritingTaskVO>({
+    fetch: getWritingTaskPage,
+    defaultFilters: DEFAULT_FILTERS,
+    toQuery: (f, p, ps) => buildQuery(f, p, ps),
+    onError: (err) =>
+      toast.error({
+        title: "加载失败",
+        description: getErrorMessage(err, "写作任务列表加载失败"),
+      }),
+  });
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<WritingTaskVO | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
-
-  const loadTasks = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await getWritingTaskPage(
-        buildQuery(appliedFilters, page, pageSize),
-      );
-      setTasks(data.records);
-      setTotal(data.total);
-    } catch (loadError) {
-      setTasks([]);
-      setTotal(0);
-      setError(getErrorMessage(loadError, "写作任务列表加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [appliedFilters, page, pageSize]);
-
-  useEffect(() => {
-    void loadTasks();
-  }, [loadTasks]);
-
-  const submitFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
-    setPage(1);
-  };
 
   const openDetail = async (record: WritingTaskVO) => {
     setDetailRecord(record);
@@ -100,7 +79,7 @@ export function WritingTaskPage() {
         description="查看所有写作任务的执行状态和生成结果。"
       />
 
-      <form onSubmit={submitFilters}>
+      <form onSubmit={(event) => { event.preventDefault(); submitFilters(); }}>
         <SearchFilterBar
           actions={
             <>
@@ -117,22 +96,14 @@ export function WritingTaskPage() {
         >
           <Input
             value={filters.title}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                title: event.target.value,
-              }))
-            }
+            onChange={(event) => setFilter("title", event.target.value)}
             placeholder="搜索标题"
             aria-label="搜索标题"
           />
           <Select
             value={filters.writingType}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                writingType: event.target.value as FilterState["writingType"],
-              }))
+              setFilter("writingType", event.target.value as FilterState["writingType"])
             }
             aria-label="筛选写作类型"
           >
@@ -146,10 +117,7 @@ export function WritingTaskPage() {
           <Select
             value={filters.status}
             onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status: event.target.value as FilterState["status"],
-              }))
+              setFilter("status", event.target.value as FilterState["status"])
             }
             aria-label="筛选状态"
           >
@@ -206,10 +174,7 @@ export function WritingTaskPage() {
           total={total}
           disabled={loading}
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          }}
+          onPageSizeChange={setPageSize}
         />
       </section>
 
