@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiPageResult } from "@/types/api";
 
 type UseListPageOptions<TFilters, TRecord, TQuery extends Record<string, unknown> = Record<string, unknown>> = {
@@ -42,19 +42,27 @@ export function useListPage<TFilters, TRecord, TQuery extends Record<string, unk
   const [filters, setFiltersState] = useState<TFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<TFilters>(defaultFilters);
 
+  // 用 ref 缓存调用方传入的函数，避免内联函数引用变化导致循环请求
+  const fetchRef = useRef(fetch);
+  fetchRef.current = fetch;
+  const toQueryRef = useRef(toQuery);
+  toQueryRef.current = toQuery;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const result = await fetch(toQuery(appliedFilters, page, pageSize));
+      const result = await fetchRef.current(toQueryRef.current(appliedFilters, page, pageSize));
       setData(result.records);
       setTotal(result.total);
     } catch (loadError) {
       setData([]);
       setTotal(0);
-      if (onError) {
-        onError(loadError);
+      if (onErrorRef.current) {
+        onErrorRef.current(loadError);
       }
       setError(
         loadError instanceof Error ? loadError.message : "加载失败",
@@ -62,7 +70,7 @@ export function useListPage<TFilters, TRecord, TQuery extends Record<string, unk
     } finally {
       setLoading(false);
     }
-  }, [fetch, toQuery, appliedFilters, page, pageSize, onError]);
+  }, [appliedFilters, page, pageSize]);
 
   useEffect(() => {
     void loadData();
