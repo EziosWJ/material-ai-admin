@@ -7,6 +7,7 @@ import {
   Bot,
   Quote,
   Loader2,
+  MessageSquareText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +32,7 @@ export function WorkbenchChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // 加载会话列表
   const loadSessions = useCallback(async () => {
@@ -79,9 +80,12 @@ export function WorkbenchChatPage() {
     };
   }, [selectedSessionId]);
 
-  // 消息更新后滚动到底部
+  // 消息更新后滚动到底部（只滚动消息容器，不影响外层页面）
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   // 新建会话
@@ -137,40 +141,48 @@ export function WorkbenchChatPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* 左侧：会话列表 */}
-      <div className="w-64 flex-shrink-0 border-r border-border bg-surface">
+      <div className="flex w-64 flex-shrink-0 flex-col border-r border-border bg-surface overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">问答会话</h2>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-7 w-7"
             onClick={handleCreateSession}
           >
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <div className="overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-2 min-h-0">
           {sessions.map((session) => (
             <button
               key={session.id}
               className={cn(
-                "flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors hover:bg-slate-50",
-                selectedSessionId === session.id &&
-                  "bg-primary/5 border-l-2 border-primary",
+                "flex w-full flex-col items-start gap-1 rounded-lg px-3 py-2.5 text-left transition-colors",
+                selectedSessionId === session.id
+                  ? "bg-primary/10 text-primary"
+                  : "hover:bg-slate-50",
               )}
               onClick={() => setSelectedSessionId(session.id)}
             >
-              <span className="text-sm text-text-primary">
+              <span className={cn(
+                "line-clamp-1 text-sm",
+                selectedSessionId === session.id ? "font-medium text-primary" : "text-text-primary",
+              )}>
                 {session.title}
               </span>
-              <span className="text-xs text-text-tertiary">
+              <span className={cn(
+                "text-xs",
+                selectedSessionId === session.id ? "text-primary/70" : "text-text-tertiary",
+              )}>
                 {formatDateTime(session.lastMessageTime || session.createTime)}
               </span>
             </button>
           ))}
           {sessions.length === 0 && (
-            <div className="px-4 py-8 text-center text-xs text-text-tertiary">
-              暂无会话，点击右上角新建
+            <div className="flex flex-col items-center gap-2 px-4 py-8">
+              <MessageSquareText className="h-8 w-8 text-text-tertiary/40" />
+              <span className="text-xs text-text-tertiary">暂无会话，点击右上角新建</span>
             </div>
           )}
         </div>
@@ -186,10 +198,10 @@ export function WorkbenchChatPage() {
         </div>
 
         {/* 消息列表 */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="mx-auto max-w-3xl space-y-6">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4">
+          <div className="mx-auto max-w-3xl space-y-5">
             {messagesLoading && (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-text-tertiary" />
               </div>
             )}
@@ -212,13 +224,13 @@ export function WorkbenchChatPage() {
                     )}
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-3",
+                        "max-w-[80%] rounded-xl px-4 py-3",
                         message.role === "user"
                           ? "bg-primary text-white"
-                          : "bg-surface border border-border",
+                          : "bg-slate-50 text-text-primary",
                       )}
                     >
-                      <div className="whitespace-pre-wrap text-sm">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
                         {message.content}
                       </div>
                       {message.role === "assistant" &&
@@ -239,36 +251,36 @@ export function WorkbenchChatPage() {
                 ))}
 
             {!messagesLoading && selectedSessionId !== null && messages.length === 0 && (
-              <div className="py-12 text-center text-sm text-text-tertiary">
-                暂无消息，发送问题开始对话
+              <div className="flex flex-col items-center gap-3 py-16">
+                <MessageSquareText className="h-10 w-10 text-text-tertiary/30" />
+                <span className="text-sm text-text-tertiary">暂无消息，发送问题开始对话</span>
               </div>
             )}
 
             {selectedSessionId === null && (
-              <div className="py-12 text-center text-sm text-text-tertiary">
-                请从左侧选择一个会话，或新建会话
+              <div className="flex flex-col items-center gap-3 py-16">
+                <MessageSquareText className="h-10 w-10 text-text-tertiary/30" />
+                <span className="text-sm text-text-tertiary">请从左侧选择一个会话，或新建会话</span>
               </div>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
         </div>
 
         {/* 底部输入区 */}
-        <div className="border-t border-border bg-surface p-4">
+        <div className="border-t border-border bg-surface px-4 py-3">
           <div className="mx-auto max-w-3xl">
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <Textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="输入您的问题..."
-                className="min-h-[44px] resize-none"
+                className="min-h-[40px] resize-none"
                 rows={1}
                 disabled={sending || selectedSessionId === null}
               />
               <Button
-                className="flex-shrink-0"
+                className="h-10 flex-shrink-0"
                 disabled={!inputValue.trim() || sending || selectedSessionId === null}
                 onClick={handleSend}
               >
@@ -279,7 +291,7 @@ export function WorkbenchChatPage() {
                 )}
               </Button>
             </div>
-            <p className="mt-2 text-xs text-text-tertiary">
+            <p className="mt-1.5 text-xs text-text-tertiary">
               回答将基于已选择材料生成
             </p>
           </div>
@@ -300,13 +312,13 @@ export function WorkbenchChatPage() {
             <h4 className="mb-2 text-xs font-medium text-text-tertiary">
               当前选择材料
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {selectedSession?.materials &&
               selectedSession.materials.length > 0 ? (
                 selectedSession.materials.map((material) => (
                   <div
                     key={material.materialId}
-                    className="flex items-center gap-2 rounded-lg border border-border px-3 py-2"
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors"
                   >
                     <FileText className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
                     <span className="truncate text-sm text-text-primary">
@@ -315,7 +327,10 @@ export function WorkbenchChatPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-text-tertiary">暂未关联材料</p>
+                <div className="flex flex-col items-center gap-1.5 py-4">
+                  <FileText className="h-6 w-6 text-text-tertiary/30" />
+                  <span className="text-xs text-text-tertiary">暂未关联材料</span>
+                </div>
               )}
             </div>
           </div>
