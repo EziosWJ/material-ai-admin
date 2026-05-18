@@ -107,7 +107,10 @@ export function AppSidebar({ collapsed }: AppSidebarProps) {
     const Icon = item.icon;
     const hasChildren = Boolean(item.children?.length);
     const isExpanded = expandedPaths.includes(item.path);
-    const active = hasActivePath(location.pathname, item);
+    // 仅叶子菜单项显示 active 样式，组菜单只展开不标蓝
+    const active = hasChildren
+      ? location.pathname === item.path
+      : hasActivePath(location.pathname, item);
     const itemHeightClass = depth === 0 ? "h-10" : "h-9";
     const itemGapClass = depth === 0 ? "gap-3" : "gap-2";
     const itemTextClass = depth === 0 ? "font-medium" : "";
